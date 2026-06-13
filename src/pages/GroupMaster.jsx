@@ -21,7 +21,11 @@ export default function GroupMaster() {
     setLoading(true);
     try {
       const d = await apiCall("Get Groups");
-      setRows(d.List0 || []);
+      const mapped = (d.List0 || []).map(g => ({
+        ...g,
+        GroupName: g.GroupName === "Customer Orders" ? "Customer Order" : g.GroupName
+      }));
+      setRows(mapped);
     } catch { showToast("Failed to load"); }
     setLoading(false);
   }

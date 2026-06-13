@@ -57,7 +57,14 @@ export default function GroupPages() {
 
   async function loadGroups() {
     setLoading(true);
-    try { const d = await apiCall("Get Groups"); setGroups(d.List0 || []); } catch { showToast("Failed to load groups"); }
+    try {
+      const d = await apiCall("Get Groups");
+      const mapped = (d.List0 || []).map(g => ({
+        ...g,
+        GroupName: g.GroupName === "Customer Orders" ? "Customer Order" : g.GroupName
+      }));
+      setGroups(mapped);
+    } catch { showToast("Failed to load groups"); }
     setLoading(false);
   }
 

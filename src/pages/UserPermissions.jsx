@@ -103,7 +103,14 @@ export default function UserPermissions() {
 
   async function init() {
     try { const d = await apiCall("Get Users"); setUsers(d.List0 || []); } catch { void 0; }
-    try { const d = await apiCall("Get Groups"); setGroups(d.List0 || []); } catch { void 0; }
+    try {
+      const d = await apiCall("Get Groups");
+      const mapped = (d.List0 || []).map(g => ({
+        ...g,
+        GroupName: g.GroupName === "Customer Orders" ? "Customer Order" : g.GroupName
+      }));
+      setGroups(mapped);
+    } catch { void 0; }
     try { const d = await apiCall("Get Pages"); setAllPages(d.List0 || []); } catch { void 0; }
   }
 
