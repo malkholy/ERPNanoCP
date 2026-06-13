@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ERP Nano Grid Template</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:Inter,Segoe UI,Arial,sans-serif}
+:root{--bg:#f8fafc;--surface:#fff;--soft:#f9fafb;--text:#111827;--muted:#64748b;--border:#e5e7eb;--primary:#f97316;--primary-dark:#ea580c;--primary-soft:#ffedd5;--green:#16a34a;--green-soft:#dcfce7;--red:#dc2626;--red-soft:#fee2e2;--blue:#2563eb;--blue-soft:#dbeafe;--amber:#f59e0b;--amber-soft:#fef3c7;--shadow:0 16px 40px rgba(15,23,42,.08)}
+body{background:var(--bg);color:var(--text)}
+.login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#111827,#1f2937);padding:24px}
+.login-card{width:100%;max-width:430px;background:var(--surface);border-radius:28px;padding:34px;box-shadow:0 30px 80px rgba(0,0,0,.35)}
+.logo{width:64px;height:64px;border-radius:20px;background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;display:grid;place-items:center;font-weight:900;margin:0 auto 14px}
+.login-card h2{text-align:center;font-size:28px;margin-bottom:6px}.login-card p{text-align:center;color:var(--muted);margin-bottom:24px}
+.input-group{margin-bottom:16px}.input-group label{display:block;font-weight:800;margin-bottom:7px}.input-group input{width:100%;height:48px;border:1px solid var(--border);border-radius:14px;background:var(--soft);padding:0 14px;font-weight:700}
+.login-btn{width:100%;height:50px;border:0;border-radius:16px;background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;font-weight:900;font-size:16px;cursor:pointer}
+.app{display:none}
+.topbar{height:64px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 22px;position:sticky;top:0;z-index:20}
+.brand{display:flex;align-items:center;gap:12px;font-weight:900;font-size:22px}.brand span{color:var(--primary)}
+.header-actions{display:flex;gap:10px}.btn{height:40px;border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:0 14px;font-weight:900;cursor:pointer}.btn.primary{background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;border:0}.btn.green{background:#166534;color:#fff;border:0}.btn.red{background:#991b1b;color:#fff;border:0}.btn.blue{background:#0b5ed7;color:#fff;border:0}
+.content{padding:22px}.page-head{display:flex;justify-content:space-between;gap:14px;margin-bottom:18px}.page-head h1{font-size:26px}.muted{color:var(--muted);font-size:14px}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px}.kpi{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:18px;box-shadow:var(--shadow);border-top:4px solid var(--primary)}.kpi small{color:var(--muted);font-weight:900}.kpi h3{font-size:28px;margin-top:10px}
+.filter-group{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;margin-bottom:16px}.panel{background:var(--surface);border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow);overflow:visible}.panel-head{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center}.panel-head h3{font-size:18px}.panel-body{padding:16px 18px}
+.filters{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.field{position:relative}.field label{display:block;color:var(--muted);font-size:12px;font-weight:900;text-transform:uppercase;margin-bottom:6px}.select-btn{height:44px;border:1px solid var(--border);border-radius:13px;background:var(--surface);padding:0 12px;width:100%;display:flex;justify-content:space-between;align-items:center;font-weight:900;cursor:pointer}.dropdown{position:fixed;display:none;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);padding:10px;z-index:9999;max-height:300px;overflow:auto}.dropdown.show{display:block}.dropdown input{width:100%;height:38px;border:1px solid var(--border);border-radius:10px;padding:0 10px;margin-bottom:8px}.option{padding:9px 10px;border-radius:9px;font-weight:800;cursor:pointer}.option:hover{background:var(--primary-soft);color:var(--primary-dark)}
+.groups{display:flex;flex-wrap:wrap;gap:8px}.groups button{height:40px;border:1px solid var(--border);border-radius:13px;background:var(--soft);padding:0 14px;font-weight:900;color:var(--muted);cursor:pointer}.groups button.active{background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;border:0}
+.grid-panel{background:var(--surface);border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow);overflow:hidden}
+.grid-title{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between}
+.toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid var(--border)}.selected{color:#0b5ed7;font-weight:900;margin-right:8px}.search{height:40px;border:1px solid var(--border);border-radius:12px;padding:0 12px;font-weight:800;min-width:260px}
+.export-wrap{position:relative}.export-menu,.row-menu,.summary-menu{position:fixed;display:none;background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);z-index:10000;padding:7px;min-width:210px}.export-menu.show,.row-menu.show,.summary-menu.show{display:block}.menu-title{padding:8px 10px 5px;color:var(--muted);font-size:11px;font-weight:900;text-transform:uppercase}.menu-item{padding:10px 12px;border-radius:9px;font-weight:850;cursor:pointer;display:flex;justify-content:space-between}.menu-item:hover{background:var(--primary-soft);color:var(--primary-dark)}.danger{color:var(--red)}
+.table-wrap{overflow:auto;max-height:520px}table{width:100%;border-collapse:collapse;min-width:900px;table-layout:auto}th,td{padding:13px 16px;border-bottom:1px solid var(--border);white-space:nowrap;text-align:left}th{background:var(--soft);color:var(--muted);font-size:13px;position:sticky;top:0;z-index:3}.sort{cursor:pointer}.filter-btn{height:28px;width:28px;border:1px solid var(--border);border-radius:9px;background:var(--surface);cursor:pointer;margin-left:6px}.num{text-align:right;font-family:Consolas,monospace;font-weight:800}.badge{padding:6px 10px;border-radius:999px;font-size:12px;font-weight:900}.good{background:var(--green-soft);color:var(--green)}.warn{background:var(--amber-soft);color:var(--amber)}.bad{background:var(--red-soft);color:var(--red)}tr.active-row td{background:var(--primary-soft)!important}tr.selected-row td{background:rgba(249,115,22,.12)}
+.summary-bar{overflow:auto;border-top:2px solid var(--primary);background:var(--soft)}.summary-table{width:100%;min-width:900px;border-collapse:collapse}.summary-table td{padding:12px 16px;background:var(--soft);font-weight:900;border-bottom:1px solid var(--border)}.summary-cell{cursor:context-menu}.summary-cell:hover{background:var(--primary-soft)!important}.summary-badge{display:block;color:var(--primary);font-size:10px;margin-top:3px}
+.paging{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:14px 18px}.page-size{height:38px;border:1px solid var(--border);border-radius:10px;padding:0 10px}.pager{display:flex;gap:6px}.page-btn{height:36px;min-width:36px;border:1px solid var(--border);background:var(--surface);border-radius:10px;font-weight:900;cursor:pointer}.page-btn.active{background:var(--primary);color:#fff;border:0}.page-btn:disabled{opacity:.4}
+.modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:none;align-items:center;justify-content:center;z-index:99999}.modal.show{display:flex}.modal-box{width:min(560px,calc(100vw - 28px));background:var(--surface);border-radius:22px;box-shadow:var(--shadow)}.modal-head{padding:18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between}.modal-body{padding:18px}.col-list{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.col-list label{padding:10px;border:1px solid var(--border);border-radius:12px;background:var(--soft);font-weight:800}.toast{position:fixed;bottom:18px;right:18px;background:#111827;color:#fff;padding:12px 16px;border-radius:14px;display:none;z-index:99999}.toast.show{display:block}
+@media(max-width:900px){.filter-group{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.page-head{flex-direction:column}.toolbar{align-items:stretch}.search{width:100%}}
+@media(max-width:600px){.content{padding:14px}.kpis,.filters{grid-template-columns:1fr}.toolbar .btn{flex:1}.col-list{grid-template-columns:1fr}.paging{flex-direction:column;align-items:flex-start}}
+
+/* App Navbar / Sidebar */
+.app-shell{display:flex;min-height:100vh}
+.sidebar{width:280px;background:#1f2937;color:#fff;position:fixed;left:0;top:0;bottom:0;padding:22px;display:flex;flex-direction:column;z-index:50;box-shadow:12px 0 34px rgba(0,0,0,.12)}
+.side-brand{display:flex;align-items:center;gap:12px;margin-bottom:28px}
+.side-brand h2{font-size:24px}
+.side-brand p{font-size:13px;color:#9ca3af}
+.side-logo{width:50px;height:50px;border-radius:16px;background:linear-gradient(135deg,var(--primary),var(--primary-dark));display:grid;place-items:center;font-weight:900}
+.side-menu{list-style:none;display:flex;flex-direction:column;gap:8px;flex:1}
+.side-menu a{display:flex;align-items:center;gap:12px;color:#e5e7eb;text-decoration:none;padding:13px 14px;border-radius:16px;font-weight:850}
+.side-menu a:hover{background:#374151}
+.side-menu a.active{background:linear-gradient(135deg,var(--primary),var(--primary-dark));color:#fff;box-shadow:0 12px 26px rgba(249,115,22,.35)}
+.side-icon{width:30px;height:30px;border-radius:11px;background:rgba(255,255,255,.09);display:grid;place-items:center}
+.side-footer{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.1);border-radius:20px;padding:14px}
+.side-user{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.side-avatar{width:38px;height:38px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--primary-dark));display:grid;place-items:center;font-weight:900}
+.side-user span{display:block;color:#9ca3af;font-size:12px}
+.side-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.side-actions button{height:38px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.08);color:#e5e7eb;font-weight:850;cursor:pointer}
+.app-main{margin-left:280px;width:calc(100% - 280px)}
+.topbar{height:58px;background:rgba(248,250,252,.9);backdrop-filter:blur(18px);border-bottom:1px solid var(--border);display:flex;align-items:flex-end;padding:0 24px;position:sticky;top:0;z-index:30}
+.mobile-toggle{display:none;height:40px;border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:0 12px;margin:0 10px 9px 0;font-weight:900}
+.tabs{display:flex;gap:8px;overflow-x:auto}
+.tab{height:38px;display:flex;align-items:center;padding:0 15px;border:1px solid var(--border);border-bottom:0;border-radius:15px 15px 0 0;background:var(--soft);color:var(--muted);font-size:14px;font-weight:800;white-space:nowrap}
+.tab.active{background:var(--surface);color:var(--text);position:relative}
+.tab.active:before{content:'';position:absolute;left:12px;right:12px;top:0;height:3px;border-radius:999px;background:linear-gradient(135deg,var(--primary),var(--primary-dark))}
+.mobile-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:40}
+.mobile-overlay.show{display:block}
+@media(max-width:1050px){
+  .sidebar{transform:translateX(-100%);transition:.25s}
+  .sidebar.show{transform:translateX(0)}
+  .app-main{margin-left:0;width:100%}
+  .mobile-toggle{display:block}
+}
+@media(max-width:520px){
+  .sidebar{width:86vw;max-width:310px}
+  .topbar{padding:0 12px}
+  .tab{font-size:12px;padding:0 11px}
+  .side-actions{grid-template-columns:1fr}
+}
+
+
+/* Fixed Summary Alignment: summary is inside the same table */
+.summary-bar,.summary-table{display:none!important}
+tfoot td{
+  background:var(--soft)!important;
+  font-weight:900;
+  border-top:2px solid var(--primary);
+}
+tfoot td.num{
+  text-align:right;
+  font-family:Consolas,monospace;
+}
+tfoot td.summary-cell{
+  cursor:context-menu;
+}
+tfoot td.summary-cell:hover{
+  background:var(--primary-soft)!important;
+}
+
+</style>
+</head>
+<body>
+<section class="login" id="loginPage">
+  <div class="login-card">
+    <div class="logo">ERP</div>
+    <h2>ERP Nano</h2>
+    <p>Sign in to continue</p>
+    <form id="loginForm">
+      <div class="input-group"><label>Email</label><input value="admin@demo.com" type="email"></div>
+      <div class="input-group"><label>Password</label><input value="123456" type="password"></div>
+      <button class="login-btn">Sign In</button>
+    </form>
+  </div>
+</section>
+
+<section class="app" id="appPage">
+  <div class="mobile-overlay" id="mobileOverlay"></div>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="side-brand">
+        <div class="side-logo">ERP</div>
+        <div>
+          <h2>ERP Nano</h2>
+          <p>Enterprise Template</p>
+        </div>
+      </div>
+
+      <ul class="side-menu">
+        <li><a class="active" href="#"><span class="side-icon">▦</span>Dashboard</a></li>
+        <li><a href="#"><span class="side-icon">📊</span>Statistics</a></li>
+        <li><a href="#"><span class="side-icon">📦</span>Inventory</a></li>
+        <li><a href="#"><span class="side-icon">💰</span>Accounting</a></li>
+        <li><a href="#"><span class="side-icon">👥</span>HR</a></li>
+        <li><a href="#"><span class="side-icon">⚙</span>Settings</a></li>
+      </ul>
+
+      <div class="side-footer">
+        <div class="side-user">
+          <div class="side-avatar">MA</div>
+          <div><strong>Mohammad</strong><span>System Admin</span></div>
+        </div>
+        <div class="side-actions">
+          <button onclick="alert('Profile')">Profile</button>
+          <button onclick="logout()">Logout</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="app-main">
+      <div class="topbar">
+        <button class="mobile-toggle" onclick="toggleSidebar()">☰</button>
+        <div class="tabs">
+          <div class="tab">▦ Dashboard ×</div>
+          <div class="tab active">📊 Advanced Grid ×</div>
+          <div class="tab">💰 Cash ×</div>
+        </div>
+      </div>
+
+  <div class="content">
+    <div class="page-head">
+      <div><h1>Advanced Grid Template</h1><p class="muted">Working version with filters, group by, paging, export, right-click menu, and footer summary.</p></div>
+      <button class="btn primary" onclick="renderGrid()">Refresh</button>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><small>Total Amount</small><h3 id="kpiAmount">0</h3></div>
+      <div class="kpi"><small>Total Qty</small><h3 id="kpiQty">0</h3></div>
+      <div class="kpi"><small>Average</small><h3 id="kpiAvg">0</h3></div>
+      <div class="kpi"><small>Records</small><h3 id="kpiRecords">0</h3></div>
+    </div>
+
+    <div class="filter-group">
+      <div class="panel">
+        <div class="panel-head"><h3>Filters</h3><span class="muted">Search inside dropdowns</span></div>
+        <div class="panel-body filters">
+          <div class="field"><label>Customer</label><button class="select-btn" onclick="openDrop(event,'customerDrop')"><span id="customerValue">All Customers</span>⌄</button><div class="dropdown" id="customerDrop"><input oninput="filterDrop(this)" placeholder="Search customer"><div class="option" onclick="selectFilter('customerValue','All Customers','customerDrop')">All Customers</div><div class="option" onclick="selectFilter('customerValue','Alpha Market','customerDrop')">Alpha Market</div><div class="option" onclick="selectFilter('customerValue','Delta Group','customerDrop')">Delta Group</div><div class="option" onclick="selectFilter('customerValue','Modern Home','customerDrop')">Modern Home</div></div></div>
+          <div class="field"><label>Month</label><button class="select-btn" onclick="openDrop(event,'monthDrop')"><span id="monthValue">All Months</span>⌄</button><div class="dropdown" id="monthDrop"><input oninput="filterDrop(this)" placeholder="Search month"><div class="option" onclick="selectFilter('monthValue','All Months','monthDrop')">All Months</div><div class="option" onclick="selectFilter('monthValue','January','monthDrop')">January</div><div class="option" onclick="selectFilter('monthValue','February','monthDrop')">February</div><div class="option" onclick="selectFilter('monthValue','March','monthDrop')">March</div><div class="option" onclick="selectFilter('monthValue','June','monthDrop')">June</div></div></div>
+          <div class="field"><label>Year</label><button class="select-btn" onclick="openDrop(event,'yearDrop')"><span id="yearValue">All Years</span>⌄</button><div class="dropdown" id="yearDrop"><input oninput="filterDrop(this)" placeholder="Search year"><div class="option" onclick="selectFilter('yearValue','All Years','yearDrop')">All Years</div><div class="option" onclick="selectFilter('yearValue','2026','yearDrop')">2026</div><div class="option" onclick="selectFilter('yearValue','2025','yearDrop')">2025</div></div></div>
+          <div class="field"><label>Sales Person</label><button class="select-btn" onclick="openDrop(event,'salesValueDrop')"><span id="salesValue">All Sales Person</span>⌄</button><div class="dropdown" id="salesValueDrop"><input oninput="filterDrop(this)" placeholder="Search sales"><div class="option" onclick="selectFilter('salesValue','All Sales Person','salesValueDrop')">All Sales Person</div><div class="option" onclick="selectFilter('salesValue','Mohamed Ibrahim','salesValueDrop')">Mohamed Ibrahim</div><div class="option" onclick="selectFilter('salesValue','Ahmed Saleh','salesValueDrop')">Ahmed Saleh</div><div class="option" onclick="selectFilter('salesValue','Sarah Nabil','salesValueDrop')">Sarah Nabil</div></div></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h3>Group By</h3><span class="muted">Multiple choices</span></div>
+        <div class="panel-body groups">
+          <button class="active" data-group="Item" onclick="toggleGroup(this)">Per Item</button>
+          <button data-group="Month" onclick="toggleGroup(this)">Per Month</button>
+          <button data-group="Year" onclick="toggleGroup(this)">Per Year</button>
+          <button data-group="Sales Person" onclick="toggleGroup(this)">Per Sales</button>
+          <button data-group="Customer" onclick="toggleGroup(this)">Per Customer</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-panel">
+      <div class="grid-title"><h3 id="gridTitle">Data Grid</h3><span id="gridCount">0 records</span></div>
+      <div class="toolbar">
+        <span class="selected" id="selectedCount">0 selected</span>
+        <button class="btn blue" onclick="alert('New')">+ New</button>
+        <button class="btn blue" onclick="alert('View')">View</button>
+        <button class="btn green" onclick="alert('Edit')">Edit</button>
+        <button class="btn red" onclick="alert('Delete')">Delete</button>
+        <input class="search" id="tableSearch" oninput="pageIndex=1;renderGrid()" placeholder="Search in grid...">
+        <div class="export-wrap"><button class="btn green" onclick="toggleExport(event)">Export ▾</button><div class="export-menu" id="exportMenu"><div class="menu-item" onclick="exportExcel()">📗 Excel</div><div class="menu-item" onclick="exportPDF()">📕 PDF</div><div class="menu-item" onclick="exportCSV()">📄 CSV</div></div></div>
+      </div>
+      <div class="table-wrap"><table><thead id="gridHead"></thead><tbody id="gridBody"></tbody><tfoot id="summaryBody"></tfoot></table></div>
+      <div class="paging">
+        <div>Show <select class="page-size" id="pageSize" onchange="pageSizeValue=Number(this.value);pageIndex=1;renderGrid()"><option>25</option><option>50</option><option>100</option><option selected>500</option><option>1000</option></select> entries</div>
+        <div class="muted" id="pageInfo"></div>
+        <div class="pager" id="pager"></div>
+      </div>
+    </div>
+  </div>
+</div></main></div></section>
+
+<div class="row-menu" id="rowMenu">
+  <div class="menu-title">Record Actions</div>
+  <div class="menu-item">👁 View</div><div class="menu-item">✏ Edit</div><div class="menu-item">📄 Duplicate</div><div class="menu-item danger">🗑 Delete</div>
+  <div class="menu-title">Grid Functions</div>
+  <div class="menu-item" onclick="openColumns()">⚙ Columns</div><div class="menu-item" onclick="alert('Advanced Filter')">🔎 Advanced Filter</div><div class="menu-item" onclick="saveLayout()">💾 Save Layout</div>
+</div>
+
+<div class="summary-menu" id="summaryMenu">
+  <div class="menu-title" id="summaryTitle">Summary</div>
+  <div class="menu-item" data-mode="none">None <span></span></div><div class="menu-item" data-mode="sum">Sum <span></span></div><div class="menu-item" data-mode="avg">Average <span></span></div><div class="menu-item" data-mode="min">Min <span></span></div><div class="menu-item" data-mode="max">Max <span></span></div><div class="menu-item" data-mode="count">Count <span></span></div>
+</div>
+
+<div class="modal" id="columnsModal"><div class="modal-box"><div class="modal-head"><h3>Columns</h3><button class="btn" onclick="columnsModal.classList.remove('show')">X</button></div><div class="modal-body"><div class="col-list" id="columnList"></div><br><button class="btn primary" onclick="applyColumns()">Apply</button></div></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const allRows=[
+{Year:'2026',Month:'June',Item:'Interior Paint White',Customer:'Alpha Market','Sales Person':'Mohamed Ibrahim',Qty:12500,Amount:68400000,Status:'Active'},
+{Year:'2026',Month:'June',Item:'Exterior Paint Gray',Customer:'Delta Group','Sales Person':'Ahmed Saleh',Qty:8200,Amount:44100000,Status:'Pending'},
+{Year:'2026',Month:'March',Item:'Primer',Customer:'Modern Home','Sales Person':'Sarah Nabil',Qty:7800,Amount:31600000,Status:'Active'},
+{Year:'2026',Month:'February',Item:'Putty',Customer:'Mega Trade','Sales Person':'Omar Khaled',Qty:6900,Amount:22400000,Status:'Closed'},
+{Year:'2025',Month:'June',Item:'Texture Paint',Customer:'Blue Star','Sales Person':'Mohamed Ibrahim',Qty:5400,Amount:19700000,Status:'Active'},
+{Year:'2025',Month:'January',Item:'Interior Paint White',Customer:'Alpha Market','Sales Person':'Ahmed Saleh',Qty:4800,Amount:18100000,Status:'Pending'}
+];
+let groups=['Item'],sortCol='',sortDir='asc',pageIndex=1,pageSizeValue=500,currentRows=[],currentPageRows=[],selected=new Set(),hidden=new Set(),summary={Qty:'sum',Amount:'sum'},summaryCol='';
+
+loginForm.onsubmit=e=>{e.preventDefault();loginPage.style.display='none';appPage.style.display='block';renderGrid()}
+function logout(){appPage.style.display='none';loginPage.style.display='flex'}
+function fmtAmount(v){return v>=1000000?(v/1000000).toFixed(1).replace('.0','')+'M':String(v)}
+function fmtQty(v){return v>=1000?(v/1000).toFixed(1).replace('.0','')+'K':String(v)}
+function val(r,c){if(c==='Amount')return fmtAmount(r[c]);if(c==='Qty')return fmtQty(r[c]);return r[c]}
+function toastMsg(m){toast.innerText=m;toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),1600)}
+function openDrop(e,id){document.querySelectorAll('.dropdown').forEach(d=>d.classList.remove('show'));const d=document.getElementById(id),r=e.currentTarget.getBoundingClientRect();d.style.left=r.left+'px';d.style.top=(r.bottom+8)+'px';d.style.width=r.width+'px';d.classList.add('show')}
+function filterDrop(i){const q=i.value.toLowerCase();i.parentElement.querySelectorAll('.option').forEach(o=>o.style.display=o.innerText.toLowerCase().includes(q)?'block':'none')}
+function selectFilter(target,value,drop){document.getElementById(target).innerText=value;document.getElementById(drop).classList.remove('show');pageIndex=1;renderGrid()}
+function toggleGroup(btn){const g=btn.dataset.group;if(btn.classList.contains('active')){if(groups.length===1)return;btn.classList.remove('active');groups=groups.filter(x=>x!==g)}else{btn.classList.add('active');groups.push(g)}pageIndex=1;renderGrid()}
+function passFilters(r){return(customerValue.innerText==='All Customers'||r.Customer===customerValue.innerText)&&(monthValue.innerText==='All Months'||r.Month===monthValue.innerText)&&(yearValue.innerText==='All Years'||r.Year===yearValue.innerText)&&(salesValue.innerText==='All Sales Person'||r['Sales Person']===salesValue.innerText)}
+function renderGrid(){
+ const cols=[...groups,'Qty','Amount','Status'].filter(c=>!hidden.has(c));
+ const q=tableSearch.value.toLowerCase();
+ let rows=allRows.filter(passFilters).filter(r=>cols.some(c=>String(val(r,c)).toLowerCase().includes(q)));
+ if(sortCol) rows.sort((a,b)=>{let av=a[sortCol],bv=b[sortCol];if(typeof av==='number')return sortDir==='asc'?av-bv:bv-av;av=String(val(a,sortCol));bv=String(val(b,sortCol));return sortDir==='asc'?av.localeCompare(bv):bv.localeCompare(av)});
+ currentRows=rows;
+ const totalPages=Math.max(1,Math.ceil(rows.length/pageSizeValue));pageIndex=Math.min(pageIndex,totalPages);
+ currentPageRows=rows.slice((pageIndex-1)*pageSizeValue,pageIndex*pageSizeValue);
+ gridTitle.innerText='Data Grid By '+groups.join(' + ');gridCount.innerText=rows.length+' records';
+ updateKpis(rows);renderHead(cols);renderBody(cols,currentPageRows);renderSummary(cols,rows);renderPager(rows.length,totalPages);selected.clear();updateSelected();
+}
+function renderHead(cols){gridHead.innerHTML='<tr>'+cols.map(c=>`<th><span class="sort" onclick="sortColumn('${c}')">${c}${sortCol===c?(sortDir==='asc'?' ↑':' ↓'):''}</span><button class="filter-btn">⌄</button></th>`).join('')+'</tr>'}
+function renderBody(cols,rows){gridBody.innerHTML=rows.map((r,i)=>'<tr tabindex="0" data-i="'+i+'">'+cols.map(c=>{let v=val(r,c);if(c==='Status'){let cls=v==='Active'?'good':v==='Pending'?'warn':'bad';v=`<span class="badge ${cls}">${v}</span>`}return `<td class="${c==='Amount'||c==='Qty'?'num':''}">${v}</td>`}).join('')+'</tr>').join('');bindRows()}
+
+function renderSummary(cols,rows){
+  summaryBody.innerHTML='<tr>'+cols.map((c,i)=>{
+    if(i===0) return '<td>Summary</td>';
+
+    const isNumber=typeof allRows.find(r=>typeof r[c]==='number')?.[c]==='number';
+    if(!isNumber) return '<td></td>';
+
+    let v=calcSummary(rows,c);
+    let b=summary[c]==='avg'?'AVG':(summary[c]||'none').toUpperCase();
+
+    return `<td class="summary-cell ${c==='Amount'||c==='Qty'?'num':''}" data-col="${c}">
+      <span>${v}</span>
+      <span class="summary-badge">${b}</span>
+    </td>`;
+  }).join('')+'</tr>';
+
+  document.querySelectorAll('#summaryBody .summary-cell').forEach(td=>{
+    td.oncontextmenu=e=>{
+      e.preventDefault();
+      e.stopPropagation();
+      summaryCol=td.dataset.col;
+      openSummaryMenu(e.clientX,e.clientY);
+    };
+  });
+}
+
+function calcSummary(rows,c){const vals=rows.map(r=>r[c]).filter(v=>typeof v==='number');const m=summary[c]||'none';if(m==='none')return'';if(m==='count')return vals.length;if(!vals.length)return'';let n=m==='sum'?vals.reduce((a,b)=>a+b,0):m==='avg'?vals.reduce((a,b)=>a+b,0)/vals.length:m==='min'?Math.min(...vals):Math.max(...vals);return c==='Amount'?fmtAmount(n):fmtQty(n)}
+function openSummaryMenu(x,y){summaryTitle.innerText='Summary: '+summaryCol;summaryMenu.querySelectorAll('.menu-item').forEach(it=>{const s=it.querySelector('span');if(s)s.innerText=summary[summaryCol]===it.dataset.mode?'✓':''});summaryMenu.style.left=x+'px';summaryMenu.style.top=y+'px';summaryMenu.classList.add('show')}
+summaryMenu.onclick=e=>{const it=e.target.closest('.menu-item');if(!it)return;summary[summaryCol]=it.dataset.mode;summaryMenu.classList.remove('show');renderGrid()}
+function renderPager(total,totalPages){const start=total?((pageIndex-1)*pageSizeValue+1):0,end=Math.min(pageIndex*pageSizeValue,total);pageInfo.innerText=`Showing ${start} to ${end} of ${total} entries`;pager.innerHTML=`<button class="page-btn" ${pageIndex===1?'disabled':''} onclick="goPage(${pageIndex-1})">‹</button>`+[...Array(totalPages)].map((_,i)=>`<button class="page-btn ${i+1===pageIndex?'active':''}" onclick="goPage(${i+1})">${i+1}</button>`).join('')+`<button class="page-btn" ${pageIndex===totalPages?'disabled':''} onclick="goPage(${pageIndex+1})">›</button>`}
+function goPage(p){pageIndex=p;renderGrid()}
+function sortColumn(c){sortDir=sortCol===c&&sortDir==='asc'?'desc':'asc';sortCol=c;renderGrid()}
+function bindRows(){document.querySelectorAll('#gridBody tr').forEach((tr,i)=>{tr.onclick=e=>{if(e.ctrlKey)selected.has(i)?selected.delete(i):selected.add(i);else{selected.clear();selected.add(i)}updateSelected()};tr.ondblclick=()=>alert('Open row '+(i+1));tr.oncontextmenu=e=>{e.preventDefault();selected.clear();selected.add(i);updateSelected();openRowMenu(e.clientX,e.clientY)}})}
+function updateSelected(){document.querySelectorAll('#gridBody tr').forEach((tr,i)=>tr.classList.toggle('selected-row',selected.has(i)));selectedCount.innerText=selected.size+' selected'}
+function openRowMenu(x,y){rowMenu.style.left=x+'px';rowMenu.style.top=y+'px';rowMenu.classList.add('show')}
+function toggleExport(e){e.stopPropagation();const r=e.currentTarget.getBoundingClientRect();exportMenu.style.left=r.left+'px';exportMenu.style.top=(r.bottom+8)+'px';exportMenu.classList.toggle('show')}
+function exportExcel(){const cols=[...groups,'Qty','Amount','Status'].filter(c=>!hidden.has(c));const data=currentRows.map(r=>Object.fromEntries(cols.map(c=>[c,val(r,c)])));const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(data),'Grid');XLSX.writeFile(wb,'ERP_Grid.xlsx')}
+function exportCSV(){const cols=[...groups,'Qty','Amount','Status'].filter(c=>!hidden.has(c));let csv=cols.join(',')+'\n'+currentRows.map(r=>cols.map(c=>`"${val(r,c)}"`).join(',')).join('\n');let a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='ERP_Grid.csv';a.click()}
+function exportPDF(){const cols=[...groups,'Qty','Amount','Status'].filter(c=>!hidden.has(c));const doc=new jspdf.jsPDF({orientation:'landscape'});doc.text('ERP Grid',14,14);doc.autoTable({head:[cols],body:currentRows.map(r=>cols.map(c=>val(r,c))),startY:22});doc.save('ERP_Grid.pdf')}
+function openColumns(){const cols=[...new Set(['Year','Month','Item','Customer','Sales Person','Qty','Amount','Status'])];columnList.innerHTML=cols.map(c=>`<label><input type="checkbox" value="${c}" ${hidden.has(c)?'':'checked'}> ${c}</label>`).join('');columnsModal.classList.add('show')}
+function applyColumns(){hidden.clear();columnList.querySelectorAll('input').forEach(cb=>{if(!cb.checked)hidden.add(cb.value)});columnsModal.classList.remove('show');renderGrid()}
+function saveLayout(){localStorage.setItem('erpGridLayout',JSON.stringify({hidden:[...hidden],groups,summary}));toastMsg('Layout saved')}
+function updateKpis(rows){const a=rows.reduce((s,r)=>s+r.Amount,0),q=rows.reduce((s,r)=>s+r.Qty,0);kpiAmount.innerText=fmtAmount(a);kpiQty.innerText=fmtQty(q);kpiAvg.innerText=rows.length?fmtAmount(a/rows.length):'0';kpiRecords.innerText=rows.length}
+document.addEventListener('click',e=>{if(!e.target.closest('.dropdown')&&!e.target.closest('.select-btn'))document.querySelectorAll('.dropdown').forEach(d=>d.classList.remove('show'));if(!e.target.closest('.row-menu'))rowMenu.classList.remove('show');if(!e.target.closest('.export-wrap'))exportMenu.classList.remove('show');if(!e.target.closest('.summary-menu'))summaryMenu.classList.remove('show')});
+
+function toggleSidebar(){
+  sidebar.classList.toggle('show');
+  mobileOverlay.classList.toggle('show',sidebar.classList.contains('show'));
+}
+mobileOverlay.onclick=()=>toggleSidebar();
+
+renderGrid();
+</script>
+</body>
+</html>
