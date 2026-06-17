@@ -50,6 +50,7 @@ const EMPTY_DRAFT = {
   FilterDisplayField: "",
   PageKeyField: "",
   Label: "",
+  DefaultValue: "",
 };
 
 /**
@@ -87,6 +88,7 @@ export default function FilterTab({ pageId, pageFields = [], isRO = false, showT
           FilterDisplayField: x.FilterDisplayField || "",
           PageKeyField:       x.PageKeyField || "",
           Label:              x.Label || "",
+          DefaultValue:       x.DefaultValue || "",
         }));
         setRows(links);
         links.forEach(l => l.FilterID && loadFmFields(l.FilterID));
@@ -97,10 +99,29 @@ export default function FilterTab({ pageId, pageFields = [], isRO = false, showT
   async function loadFmFields(filterId) {
     if (!filterId || fmFields[filterId]) return;
     try {
-      const d = await apiCall("Get Filter Fields", { FilterID: filterId });
-      const names = (d.List0 || []).map(f => f.FieldName);
-      setFmFields(m => ({ ...m, [filterId]: names }));
-    } catch { void 0; }
+      const fm = allFilters.find(a => String(a.FilterID) === String(filterId));
+      if (fm && fm.DatabaseName && fm.TableName) {
+        const d = await apiCall("Get Fields", {
+          DatabaseName: fm.DatabaseName,
+          SchemaName: fm.SchemaName || "dbo",
+          TableName: fm.TableName
+        });
+        const names = (d.List0 || []).map(col => {
+          return col.FieldName || col.COLUMN_NAME || col.ColumnName || Object.values(col)[0] || "";
+        }).filter(Boolean);
+        setFmFields(m => ({ ...m, [filterId]: names }));
+      } else {
+        const d = await apiCall("Get Filter Fields", { FilterID: filterId });
+        const names = (d.List0 || []).map(f => f.FieldName);
+        setFmFields(m => ({ ...m, [filterId]: names }));
+      }
+    } catch {
+      try {
+        const d = await apiCall("Get Filter Fields", { FilterID: filterId });
+        const names = (d.List0 || []).map(f => f.FieldName);
+        setFmFields(m => ({ ...m, [filterId]: names }));
+      } catch { void 0; }
+    }
   }
 
   function isDateType(t) { return t === "date" || t === "date_range"; }
@@ -121,6 +142,7 @@ export default function FilterTab({ pageId, pageFields = [], isRO = false, showT
       FilterDisplayField: r.FilterDisplayField || "",
       PageKeyField: r.PageKeyField || "",
       Label: r.Label || "",
+      DefaultValue: r.DefaultValue || "",
     });
     if (r.FilterID) loadFmFields(r.FilterID);
     setModalOpen(true);
@@ -129,7 +151,20 @@ export default function FilterTab({ pageId, pageFields = [], isRO = false, showT
 
   function setDraftType(t) {
     setDraft(d => {
-      if (isDateType(t)) return { ...d, FilterType: t, FilterID: "", FilterValueField: "", FilterDisplayField: "" };
+      let nextField = d.PageKeyField;
+      if (isDateType(t)) {
+        const currentF = pageFields.find(f => f.FieldName === d.PageKeyField);
+        const isCurrentDate = currentF && (
+          (currentF.DataType || "").toLowerCase().includes("date") ||
+          (currentF.DataType || "").toLowerCase().includes("time") ||
+          (currentF.Format || "").toLowerCase().includes("date") ||
+          (currentF.Format || "").toLowerCase().includes("time")
+        );
+        if (!isCurrentDate) {
+          nextField = "";
+        }
+        return { ...d, FilterType: t, FilterID: "", FilterValueField: "", FilterDisplayField: "", PageKeyField: nextField };
+      }
       return { ...d, FilterType: t };
     });
   }
@@ -154,6 +189,7 @@ export default function FilterTab({ pageId, pageFields = [], isRO = false, showT
       FilterDisplayField: isDate ? "" : draft.FilterDisplayField,
       PageKeyField:       draft.PageKeyField,
       Label:              draft.Label || (fm ? fm.FilterName : draft.PageKeyField),
+      DefaultValue:       draft.DefaultValue || "",
     };
 
     if (editIndex === null) setRows(p => [...p, newRow]);
@@ -175,6 +211,7 @@ export default function FilterTab({ pageId, pageFields = [], isRO = false, showT
           FilterValueField:   r.FilterValueField,
           FilterDisplayField: r.FilterDisplayField,
           Label:              r.Label,
+          DefaultValue:       r.DefaultValue || "",
           SortOrder:          i + 1,
           IsActive:           1,
         })),
@@ -187,6 +224,14 @@ export default function FilterTab({ pageId, pageFields = [], isRO = false, showT
 
   const draftIsDate = isDateType(draft.FilterType);
   const draftFmFieldNames = draft.FilterID ? (fmFields[draft.FilterID] || []) : [];
+  const filteredPageFields = pageFields.filter(f => {
+    if (draftIsDate) {
+      const type = (f.DataType || "").toLowerCase();
+      const format = (f.Format || "").toLowerCase();
+      return type.includes("date") || type.includes("time") || format.includes("date") || format.includes("time");
+    }
+    return true;
+  });
 
   return (
     <div>
@@ -198,6 +243,7 @@ export default function FilterTab({ pageId, pageFields = [], isRO = false, showT
       <DataGrid
         title="Page Filters"
         subtitle={`${rows.length} filter(s) configured`}
+        hideHeader={true}
         columns={[
           { key:"_n", label:"#", numeric:true, render:(v,r) => rows.indexOf(r)+1 },
           { key:"FilterType", label:"Type", render:v => {
@@ -208,6 +254,7 @@ export default function FilterTab({ pageId, pageFields = [], isRO = false, showT
           { key:"FilterValueField", label:"Filter Field", render:(v,r) => r.FilterID ? <span style={{fontSize:12}}>{r.FilterValueField} / {r.FilterDisplayField}</span> : <span style={{color:"var(--muted)"}}>—</span> },
           { key:"PageKeyField", label:"Page Field" },
           { key:"Label", label:"Label" },
+          { key:"DefaultValue", label:"Default Value", render:v => v ? <span style={{fontWeight:800,color:"#7c3aed"}}>{v}</span> : <span style={{color:"var(--muted)"}}>—</span> },
         ]}
         rows={rows}
         onAdd={isRO ? undefined : openNew}
@@ -270,9 +317,28 @@ export default function FilterTab({ pageId, pageFields = [], isRO = false, showT
                 <label>Page Field (to filter)</label>
                 <select value={draft.PageKeyField} onChange={e=>setDraft(d=>({...d,PageKeyField:e.target.value}))}>
                   <option value="">— select page field —</option>
-                  {pageFields.map(f => <option key={f.FieldName} value={f.FieldName}>{f.FieldName}</option>)}
+                  {filteredPageFields.map(f => <option key={f.FieldName} value={f.FieldName}>{f.FieldName}</option>)}
                 </select>
               </div>
+
+              {draft.PageKeyField && (
+                <div className="ft-fld">
+                  <label>Default Value</label>
+                  {draftIsDate ? (
+                    <select value={draft.DefaultValue || ""} onChange={e=>setDraft(d=>({...d,DefaultValue:e.target.value}))}>
+                      <option value="">— none —</option>
+                      <option value="Today">Today</option>
+                      <option value="Yesterday">Yesterday</option>
+                      <option value="Last Week">Last Week</option>
+                      <option value="Month Began">Month Began</option>
+                      <option value="Last Month">Last Month</option>
+                      <option value="Year Began">Year Began</option>
+                    </select>
+                  ) : (
+                    <input value={draft.DefaultValue || ""} onChange={e=>setDraft(d=>({...d,DefaultValue:e.target.value}))} placeholder="e.g. Active, 1, or leave blank" />
+                  )}
+                </div>
+              )}
 
               <div className="ft-fld">
                 <label>Display Label</label>

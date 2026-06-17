@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { apiCall } from "../shared/api.js";
 import DataGrid from "../shared/DataGrid.jsx";
 import PageMasterDetails from "./PageMasterDetails.jsx";
+import DynamicPage from "./DynamicPage.jsx";
 
 const COLUMNS = [
   { key: "PageID",       label: "ID" },
@@ -39,19 +40,33 @@ export default function PageMaster() {
     showToast("Deleted"); load();
   }
 
-  function handleSaved() {
+  function handleSaved(args) {
     setDetail(null);
     load();
+    if (args?.runLive && args?.row) {
+      setDetail({ mode: "run", row: args.row });
+    }
   }
 
-  if (detail) return (
-    <PageMasterDetails
-      mode={detail.mode}
-      row={detail.row}
-      onBack={() => setDetail(null)}
-      onSaved={handleSaved}
-    />
-  );
+  if (detail) {
+    if (detail.mode === "run") {
+      return (
+        <DynamicPage
+          pageID={detail.row.PageID}
+          pageName={detail.row.PageName}
+          onBack={() => setDetail(null)}
+        />
+      );
+    }
+    return (
+      <PageMasterDetails
+        mode={detail.mode}
+        row={detail.row}
+        onBack={() => setDetail(null)}
+        onSaved={handleSaved}
+      />
+    );
+  }
 
   return (
     <>
@@ -64,6 +79,7 @@ export default function PageMaster() {
         onAdd={() => setDetail({ mode:"add", row:null })}
         onEdit={row => setDetail({ mode:"edit", row })}
         onView={row => setDetail({ mode:"view", row })}
+        onPreview={row => setDetail({ mode: "run", row })}
         onDelete={handleDelete}
         onRefresh={load}
       />

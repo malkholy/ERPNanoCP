@@ -64,15 +64,18 @@ export default function FilterMasterDetails({ mode, row, onBack, onSaved }) {
         try {
           const d = await apiCall("Get Filter Fields", { FilterID: row.FilterID });
           if (d.List0?.length) {
-            setFields(d.List0.map(f => ({
+            const mapped = d.List0.map(f => ({
               FieldName:  f.FieldName,
               Label:      f.Label,
               DataType:   f.DataType,
               FilterType: f.FilterType || "equals",
               IsActive:   f.IsActive ? 1 : 0,
               SortOrder:  f.SortOrder,
-            })));
+            }));
+            setFields(mapped);
             fieldsLoadedFromDB.current = true;
+            const activeFields = mapped.filter(f => f.IsActive === 1).map(f => f.FieldName);
+            setSelectedFields(new Set(activeFields));
           }
         } catch { void 0; }
         try {
@@ -141,6 +144,7 @@ export default function FilterMasterDetails({ mode, row, onBack, onSaved }) {
         fieldsLoadedFromDB.current = true;
       } else if (!fieldsLoadedFromDB.current) {
         setFields(f);
+        setSelectedFields(new Set(f.map(c => c.FieldName)));
       }
     } catch { void 0; }
   }
@@ -181,12 +185,12 @@ export default function FilterMasterDetails({ mode, row, onBack, onSaved }) {
         DatabaseName: form.DatabaseName,
         SchemaName:   form.SchemaName,
         TableName:    form.TableName,
-        Fields: (selectedFields.size > 0 ? fields.filter(f => selectedFields.has(f.FieldName)) : fields).map((f,i) => ({
+        Fields: fields.map((f,i) => ({
           FieldName:  f.FieldName,
           Label:      f.Label,
           DataType:   f.DataType,
           FilterType: f.FilterType,
-          IsActive:   1,
+          IsActive:   selectedFields.has(f.FieldName) ? 1 : 0,
           SortOrder:  i + 1,
         })),
         OrderBy: orderBy.map((o,i) => ({
@@ -289,7 +293,7 @@ export default function FilterMasterDetails({ mode, row, onBack, onSaved }) {
                 );
               }},
               { key:"_sel", label:"Save", render:(v,r) => (
-                <input type="checkbox" checked={selectedFields.has(r.FieldName)} disabled={isRO} onChange={()=>toggleSel(r.FieldName)} style={{width:16,height:16,cursor:"pointer"}} />
+                <input type="checkbox" checked={selectedFields.has(r.FieldName)} disabled={isRO} onChange={()=>toggleSel(r.FieldName)} onClick={e => e.stopPropagation()} style={{width:16,height:16,cursor:"pointer"}} />
               )},
             ]}
             rows={fields.map((f,i)=>({...f,SortOrder:i+1}))}

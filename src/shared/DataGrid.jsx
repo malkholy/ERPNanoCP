@@ -72,6 +72,9 @@ table.dg-table tfoot td.dg-summary-cell:hover{background:var(--primary-soft)!imp
 .dg-th-inner{display:flex;align-items:center;position:relative}
 .dg-resize-handle{position:absolute;right:0;top:0;bottom:0;width:5px;cursor:col-resize;z-index:1;background:transparent}
 .dg-resize-handle:hover{background:var(--primary)}
+.dg-loader-wrap { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 30px; color: var(--muted); font-weight: 800; font-size: 14px; }
+.dg-spinner { width: 24px; height: 24px; border: 3px solid var(--border); border-top: 3px solid var(--primary); border-radius: 50%; animation: dg-spin 0.8s linear infinite; }
+@keyframes dg-spin { to { transform: rotate(360deg); } }
 `;
 
 function injectCSS() {
@@ -114,7 +117,11 @@ export default function DataGrid({
   onView,
   onDuplicate,
   onRefresh,
+  onPreview,
   extraButtons = [],
+  hideHeader = false,
+  controlPanel = null,
+  viewDropdown = null,
 }) {
   injectCSS();
 
@@ -122,7 +129,7 @@ export default function DataGrid({
   const [sortCol, setSortCol]       = useState("");
   const [sortDir, setSortDir]       = useState("asc");
   const [pageIdx, setPageIdx]       = useState(1);
-  const [pageSize, setPageSize]     = useState(25);
+  const [pageSize, setPageSize]     = useState(500);
   const [selected, setSelected]     = useState(new Set());
   const [hidden, setHidden]         = useState(new Set());
   const [colWidths, setColWidths]     = useState({});
@@ -244,7 +251,7 @@ export default function DataGrid({
     }
     if (e.key === "Home")  { setSelected(new Set([0])); lastSelRef.current = 0; anchorRef.current = 0; }
     if (e.key === "End")   { const n = pageRows.length-1; setSelected(new Set([n])); lastSelRef.current = n; anchorRef.current = n; }
-    if (e.key === "Enter" && lastSelRef.current !== null && onView) onView(pageRows[lastSelRef.current]);
+    if (e.key === "Enter" && lastSelRef.current !== null && onEdit) onEdit(pageRows[lastSelRef.current]);
   }
 
   function toggleSort(col) {
@@ -341,44 +348,50 @@ export default function DataGrid({
 
   return (
     <div tabIndex={0} onKeyDown={handleKeyDown} style={{ outline: "none" }}>
-      <div className="dg-page-head">
-        <div>
-          <h1>{title}</h1>
-          {subtitle && <div className="dg-muted">{subtitle}</div>}
-        </div>
-      </div>
-
-      <div className="dg-grid-panel">
-        <div className="dg-grid-title">
-          <h3>{title} List</h3>
-          <span className="dg-muted">{sorted.length} records</span>
-        </div>
-
-        <div className="dg-toolbar">
-          <span className="dg-selected">{selected.size} selected</span>
-          {onAdd     && <button className="dg-btn blue"  onClick={onAdd}>+ New</button>}
-          {onView    && <button className="dg-btn blue"  disabled={!selRow} onClick={() => selRow && onView(selRow)}>View</button>}
-          {onEdit    && <button className="dg-btn green" disabled={!selRow} onClick={() => selRow && onEdit(selRow)}>Edit</button>}
-          {onDelete  && <button className="dg-btn red"   disabled={!selRows.length} onClick={() => onDelete(selRows)}>Delete</button>}
-          {onRefresh && <button className="dg-btn" onClick={onRefresh}>↻ Refresh</button>}
-          {extraButtons.map((b,i) => (
-            <button key={i} className={`dg-btn ${b.className||""}`} onClick={b.onClick}>{b.label}</button>
-          ))}
-          <input className="dg-search" placeholder="Search in grid..."
-            value={search} onChange={e => { setSearch(e.target.value); setPageIdx(1); }} />
-          <div className="dg-export-wrap" ref={exportMenuRef}>
-            <button className="dg-btn green" onClick={e => {
-              const r = e.currentTarget.getBoundingClientRect();
-              setExportMenu(exportMenu ? null : { x: r.left, y: r.bottom + 8 });
-            }}>Export ▾</button>
-            <div className={`dg-export-menu ${exportMenu ? "show" : ""}`}
-              style={exportMenu ? { left: exportMenu.x, top: exportMenu.y } : {}}>
-              <div className="dg-menu-item" onClick={exportExcel}>📗 Excel</div>
-              <div className="dg-menu-item" onClick={exportPDF}>📕 PDF</div>
-              <div className="dg-menu-item" onClick={exportCSV}>📄 CSV</div>
-            </div>
+      {!hideHeader && (
+        <div className="dg-page-head">
+          <div>
+            <h1>{title}</h1>
+            {subtitle && <div className="dg-muted">{subtitle}</div>}
           </div>
         </div>
+      )}
+
+      <div className="dg-grid-panel">
+        <div className="dg-grid-title" style={{alignItems:"center",display:"flex",justifyContent:"space-between",flexWrap:"wrap",gap:10}}>
+          <div style={{display:"flex",alignItems:"baseline",gap:8}}>
+            <h3>{title} List</h3>
+            <span className="dg-muted" style={{fontSize:12,fontWeight:800}}>{sorted.length} records</span>
+            {selected.size > 0 && (
+              <span style={{fontSize:12,fontWeight:900,color:"#2563eb",background:"#dbeafe",padding:"2px 8px",borderRadius:6}}>
+                {selected.size} selected
+              </span>
+            )}
+          </div>
+          <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+            {viewDropdown}
+            <input className="dg-search" placeholder="Search..."
+              value={search} onChange={e => { setSearch(e.target.value); setPageIdx(1); }}
+              style={{height:32,minWidth:180,fontSize:12,borderRadius:8,padding:"0 10px"}} />
+            {onRefresh && (
+              <button className="dg-btn" style={{height:32,borderRadius:8,fontSize:12,padding:"0 10px",display:"inline-flex",alignItems:"center",gap:4}} onClick={onRefresh}>
+                ↻ Refresh
+              </button>
+            )}
+            {onAdd && (
+              <button className="dg-btn primary" style={{height:32,borderRadius:8,fontSize:12,padding:"0 10px",display:"inline-flex",alignItems:"center",gap:4}} onClick={onAdd}>
+                + New
+              </button>
+            )}
+            {extraButtons.map((b,i) => (
+              <button key={i} className={`dg-btn ${b.className||""}`}
+                style={{height:32,borderRadius:8,fontSize:12,padding:"0 10px"}}
+                onClick={b.onClick}>{b.label}</button>
+            ))}
+          </div>
+        </div>
+
+        {controlPanel && <div className="dg-control-panel-wrapper">{controlPanel}</div>}
 
         <div className="dg-table-wrap">
           <table className="dg-table">
@@ -399,13 +412,22 @@ export default function DataGrid({
               </tr>
             </thead>
             <tbody>
-              {loading && <tr><td colSpan={visCols.length} style={{ textAlign:"center", padding:30, color:"var(--muted)" }}>Loading…</td></tr>}
+              {loading && (
+                <tr>
+                  <td colSpan={visCols.length}>
+                    <div className="dg-loader-wrap">
+                      <div className="dg-spinner" />
+                      <span>Loading data...</span>
+                    </div>
+                  </td>
+                </tr>
+              )}
               {!loading && pageRows.length === 0 && <tr><td colSpan={visCols.length} style={{ textAlign:"center", padding:30, color:"var(--muted)" }}>No records found</td></tr>}
               {!loading && pageRows.map((row, i) => (
                 <tr key={i}
                   className={selected.has(i) ? "selected-row" : ""}
                   onClick={e => select(i, e)}
-                  onDoubleClick={() => onView && onView(row)}
+                  onDoubleClick={() => onEdit && onEdit(row)}
                   onContextMenu={e => {
                     e.preventDefault();
                     lastSelRef.current = i;
@@ -467,10 +489,16 @@ export default function DataGrid({
       <div ref={rowMenuRef} className={`dg-row-menu ${rowMenu?"show":""}`}
         style={rowMenu?{left:rowMenu.x,top:rowMenu.y}:{}}>
         <div className="dg-menu-title">Record Actions</div>
-        {onView      && <div className="dg-menu-item" onClick={() => { onView(rowMenu.row); setRowMenu(null); }}>👁 View</div>}
+        {onPreview   && rowMenu && (!rowMenu.row.PageType || rowMenu.row.PageType === "grid") && (
+          <div className="dg-menu-item" onClick={() => { onPreview(rowMenu.row); setRowMenu(null); }}>🚀 Run Live</div>
+        )}
         {onEdit      && <div className="dg-menu-item" onClick={() => { onEdit(rowMenu.row); setRowMenu(null); }}>✏ Edit</div>}
         {onDuplicate && <div className="dg-menu-item" onClick={() => { onDuplicate(rowMenu.row); setRowMenu(null); }}>📄 Duplicate</div>}
         {onDelete    && <div className="dg-menu-item dg-danger" onClick={() => { onDelete([rowMenu.row]); setRowMenu(null); }}>🗑 Delete</div>}
+        <div className="dg-menu-title">Export Data</div>
+        <div className="dg-menu-item" onClick={() => { exportExcel(); setRowMenu(null); }}>📗 Excel</div>
+        <div className="dg-menu-item" onClick={() => { exportPDF(); setRowMenu(null); }}>📕 PDF</div>
+        <div className="dg-menu-item" onClick={() => { exportCSV(); setRowMenu(null); }}>📄 CSV</div>
         <div className="dg-menu-title">Grid Functions</div>
         <div className="dg-menu-item" onClick={() => { setColModal(true); setRowMenu(null); }}>⚙ Columns</div>
         <div className="dg-menu-item" onClick={() => { showToast("Advanced filter coming soon"); setRowMenu(null); }}>🔎 Advanced Filter</div>

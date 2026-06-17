@@ -311,7 +311,9 @@ function Login({ onLogin }) {
     try {
       const data = await apiCall("CP Login", { Username: username, Password: password });
       if (data.State === 0 && data.List0?.[0]) {
-        sessionStorage.setItem("UserName", data.List0[0].Name || ""); onLogin(data.List0[0]);
+        sessionStorage.setItem("UserName", data.List0[0].Name || "");
+        sessionStorage.setItem("UserID", data.List0[0].UserID || "");
+        onLogin(data.List0[0]);
       } else {
         setError(data.Message || "Invalid credentials");
       }
@@ -455,7 +457,7 @@ export default function ERPNanoCP() {
         user={user}
         activeKey={activeTab}
         onNavigate={openTab}
-        onLogout={() => setUser(null)}
+        onLogout={() => { sessionStorage.clear(); setUser(null); }}
         darkMode={darkMode}
         onToggleDark={() => setDarkMode(v => !v)}
         open={sidebarOpen}

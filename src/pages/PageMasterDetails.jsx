@@ -10,7 +10,7 @@ const CLAUDE_PROXY = "https://sila.silasystem.com:7300/api/claude/suggest";
 const CSS = `
 .pmd-wrap{display:flex;flex-direction:column;min-height:calc(100vh - 56px)}
 .pmd-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;background:var(--surface)}
-.pmd-head h2{font-size:20px;font-weight:900}
+.pmd-head h2{font-size:12px;font-weight:900}
 .pmd-tabs{display:flex;gap:4px;padding:10px 18px 0;border-bottom:1px solid var(--border);background:var(--surface)}
 .pmd-tab{padding:8px 16px;border-radius:10px 10px 0 0;font-weight:900;font-size:13px;cursor:pointer;color:var(--muted);background:var(--soft)}
 .pmd-tab.active{background:var(--surface);color:var(--primary);border-bottom:2px solid var(--primary)}
@@ -59,11 +59,13 @@ const CSS = `
 `;
 
 function injectCSS() {
-  if (document.getElementById("pmd-css")) return;
-  const s = document.createElement("style");
-  s.id = "pmd-css";
+  let s = document.getElementById("pmd-css");
+  if (!s) {
+    s = document.createElement("style");
+    s.id = "pmd-css";
+    document.head.appendChild(s);
+  }
   s.textContent = CSS;
-  document.head.appendChild(s);
 }
 
 const thS = { padding:"9px 12px", textAlign:"left", fontWeight:900, fontSize:11, color:"var(--muted)", textTransform:"uppercase", borderBottom:"1px solid var(--border)", background:"var(--soft)" };
@@ -172,6 +174,26 @@ export default function PageMasterDetails({ mode, row, onBack, onSaved }) {
     setSaving(false);
   }
 
+  async function handleSaveAndRun() {
+    if (!form.PageName) { showToast("Page Name is required"); return; }
+    setSaving(true);
+    try {
+      const op = mode === "add" ? "Save Page Setup" : "Update Page Setup";
+      const fieldsToSave = selectedFields.size > 0
+        ? fields.filter(f => selectedFields.has(f.FieldName)).map((f,i) => ({ ...f, SortOrder:i+1 }))
+        : fields.map((f,i) => ({ ...f, SortOrder:i+1 }));
+      const d = await apiCall(op, { ...form, Fields: fieldsToSave });
+      if (d.State === 0) {
+        showToast("Saved — starting live preview");
+        setTimeout(() => {
+          onSaved({ runLive: true, row: { ...form, PageID: form.PageID || d.PageID || row?.PageID } });
+        }, 600);
+      }
+      else showToast(d.Message || "Error");
+    } catch { showToast("Save failed"); }
+    setSaving(false);
+  }
+
   // Fields helpers
   function updateLabel(i, v) { setFields(p => p.map((x,idx) => idx===i?{...x,Label:v}:x)); }
   function toggleF(i, key)   { setFields(p => p.map((x,idx) => idx===i?{...x,[key]:x[key]?0:1}:x)); }
@@ -186,15 +208,55 @@ export default function PageMasterDetails({ mode, row, onBack, onSaved }) {
   async function handleAISuggest() {
     if (!form.TableName) { showToast("Select a table first"); return; }
     setAiVisible(true); setAiLoading(true); setAiText(""); setAiSuggestion(null);
-    const fieldNames = (tableFields.length > 0 ? tableFields : fields).map(f => f.FieldName).join(",");
+    
+    const allFields = (tableFields.length > 0 ? tableFields : fields).map(f => f.FieldName);
+    if (allFields.length === 0) {
+      setAiText("No fields found to analyze.");
+      setAiLoading(false);
+      return;
+    }
+    
+    const chunkSize = 5; // Smaller chunk size (5 fields) prevents model output truncation
+    const chunks = [];
+    for (let i = 0; i < allFields.length; i += chunkSize) {
+      chunks.push(allFields.slice(i, i + chunkSize));
+    }
+    
+    setAiText(`AI is analyzing fields in ${chunks.length} batches in parallel…`);
+    
     try {
-      const res = await fetch(CLAUDE_PROXY, { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ Fields: fieldNames }) });
-      const data = await res.json();
-      if (data.state !== 0) { setAiText(data.message || "Error"); setAiLoading(false); return; }
-      const suggestions = JSON.parse(data.suggestions);
-      setAiSuggestion(suggestions);
-      setAiText(`AI configured ${suggestions.length} fields — labels and visibility updated. Click Apply to use.`);
-    } catch { setAiText("Could not get AI suggestion. Check proxy connection."); }
+      const promises = chunks.map(async (chunk, idx) => {
+        const fieldNames = chunk.join(",");
+        const res = await fetch(CLAUDE_PROXY, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ Fields: fieldNames })
+        });
+        
+        const data = await res.json();
+        if (data.state !== 0) {
+          throw new Error(data.message || `Error in batch ${idx + 1}`);
+        }
+        
+        let suggestions;
+        if (typeof data.suggestions === "string") {
+          suggestions = JSON.parse(data.suggestions);
+        } else {
+          suggestions = data.suggestions;
+        }
+        
+        return suggestions || [];
+      });
+      
+      const results = await Promise.all(promises);
+      const allSuggestions = results.flat();
+      
+      setAiSuggestion(allSuggestions);
+      setAiText(`AI configured ${allSuggestions.length} fields — labels and visibility updated. Click Apply to use.`);
+    } catch (err) {
+      console.error(err);
+      setAiText(err.message || "Could not get AI suggestion. Check proxy connection.");
+    }
     setAiLoading(false);
   }
 
@@ -257,6 +319,7 @@ export default function PageMasterDetails({ mode, row, onBack, onSaved }) {
       Label: f.Label,
       DataType: f.DataType,
       Visible: f.Visible ?? 1,
+      Format: f.Format,
     })) });
     setSelAvail(null); setSelView(null); setAvailSearch(""); setViewSearch("");
     setViewMode("new");
@@ -366,10 +429,13 @@ export default function PageMasterDetails({ mode, row, onBack, onSaved }) {
             <span>›</span>
             <span style={{color:"var(--text)",fontWeight:800}}>{mode==="add"?"New Page":mode==="edit"?`Edit — ${form.PageName||"…"}`:`${form.PageName||"…"}`}</span>
           </div>
-          <h2>{mode==="add"?"Add Page":mode==="edit"?"Edit Page":"View Page"}</h2>
+          <h2>{mode === "add" && !form.TableName ? "Add Page" : `${form.DatabaseName || "Database"}\\${form.SchemaName || "Schema"}\\${form.TableName || "Table"}`}</h2>
         </div>
         <div style={{display:"flex",gap:8}}>
           <button className="dg-btn" onClick={onBack}>Cancel</button>
+          {!isRO && form.PageType === "grid" && (
+            <button className="dg-btn" style={{borderColor:"var(--primary)",color:"var(--primary)"}} disabled={saving} onClick={handleSaveAndRun}>🚀 Run Live</button>
+          )}
           {!isRO && <button className="dg-btn primary" disabled={saving} onClick={handleSave}>{saving?"Saving…":"Save"}</button>}
         </div>
       </div>
@@ -430,58 +496,48 @@ export default function PageMasterDetails({ mode, row, onBack, onSaved }) {
         {/* FIELDS */}
         {tab === "fields" && (
           <>
-            {!isRO && (
-              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-                <button className="pmd-ai-btn" style={{marginTop:0}} disabled={aiLoading||!form.TableName} onClick={handleAISuggest}>
-                  <span style={{fontSize:15}}>✦</span>{aiLoading?"Thinking…":"AI Suggest Fields"}
-                </button>
-                {aiSuggestion && !aiLoading && (
-                  <>
-                    <button className="pmd-ai-apply" style={{marginTop:0}} onClick={applyAI}>✓ Apply All</button>
-                    <button className="pmd-ai-dismiss" style={{marginTop:0}} onClick={()=>{setAiSuggestion(null);setAiVisible(false);}}>✕ Dismiss</button>
-                  </>
-                )}
-              </div>
-            )}
             {aiVisible && aiLoading && (
               <div className="pmd-ai-panel" style={{marginBottom:12}}>
-                <div className="pmd-ai-head"><span>✦</span><span>AI is analyzing fields…</span></div>
+                <div className="pmd-ai-head"><span>✦</span><span>{aiText || "AI is analyzing fields…"}</span></div>
                 <div className="pmd-ai-typing"><div className="pmd-ai-dot"/><div className="pmd-ai-dot"/><div className="pmd-ai-dot"/></div>
               </div>
             )}
-            {aiSuggestion && !aiLoading && (
-              <div style={{marginBottom:12,padding:"14px 16px",background:"#ede9fe",border:"1px solid #c4b5fd",borderRadius:12,maxWidth:900}}>
-                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
+            {aiVisible && !aiLoading && aiText && (
+              <div style={{marginBottom:12,padding:"14px 16px",background:aiSuggestion?"#ede9fe":"#fee2e2",border:`1px solid ${aiSuggestion?"#c4b5fd":"#fca5a5"}`,borderRadius:12,maxWidth:900}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:aiSuggestion?10:0,flexWrap:"wrap",gap:8}}>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
-                    <span style={{fontSize:16}}>✦</span>
-                    <span style={{fontWeight:900,fontSize:13,color:"#7c3aed"}}>{aiText}</span>
+                    <span style={{fontSize:16}}>{aiSuggestion?"✦":"⚠️"}</span>
+                    <span style={{fontWeight:900,fontSize:13,color:aiSuggestion?"#7c3aed":"#b91c1c"}}>{aiText}</span>
                   </div>
                   <div style={{display:"flex",gap:8}}>
-                    <button className="pmd-ai-apply" style={{marginTop:0}} onClick={applyAI}>✓ Apply All</button>
-                    <button className="pmd-ai-dismiss" style={{marginTop:0}} onClick={()=>{setAiSuggestion(null);setAiVisible(false);}}>✕ Dismiss</button>
+                    {aiSuggestion && <button className="pmd-ai-apply" style={{marginTop:0}} onClick={applyAI}>✓ Apply All</button>}
+                    <button className="pmd-ai-dismiss" style={{marginTop:0,color:aiSuggestion?"#7c3aed":"#b91c1c",borderColor:aiSuggestion?"#c4b5fd":"#fca5a5"}} onClick={()=>{setAiSuggestion(null);setAiVisible(false);setAiText("");}}>✕ Dismiss</button>
                   </div>
                 </div>
-                <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:7}}>
-                  {aiSuggestion.map((s,i) => (
-                    <div key={i} style={{background:"#fff",border:"1px solid #c4b5fd",borderRadius:9,padding:"8px 10px",fontSize:12}}>
-                      <div style={{fontWeight:900,color:"#4c1d95",marginBottom:4}}>{s.FieldName}</div>
-                      <div style={{color:"#6d28d9",fontSize:11,lineHeight:1.5}}>
-                        {s.Label && <div>Label: <strong>{s.Label}</strong></div>}
-                        {s.Format && <div>Format: <strong>{s.Format}</strong></div>}
-                        <div>Visible: <strong>{s.Visible?"Yes":"No"}</strong></div>
-                        {s.Reason && <div style={{color:"#7c3aed",marginTop:3,fontStyle:"italic"}}>{s.Reason}</div>}
+                {aiSuggestion && (
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))",gap:7}}>
+                    {aiSuggestion.map((s,i) => (
+                      <div key={i} style={{background:"#fff",border:"1px solid #c4b5fd",borderRadius:9,padding:"8px 10px",fontSize:12}}>
+                        <div style={{fontWeight:900,color:"#4c1d95",marginBottom:4}}>{s.FieldName}</div>
+                        <div style={{color:"#6d28d9",fontSize:11,lineHeight:1.5}}>
+                          {s.Label && <div>Label: <strong>{s.Label}</strong></div>}
+                          {s.Format && <div>Format: <strong>{s.Format}</strong></div>}
+                          <div>Visible: <strong>{s.Visible?"Yes":"No"}</strong></div>
+                          {s.Reason && <div style={{color:"#7c3aed",marginTop:3,fontStyle:"italic"}}>{s.Reason}</div>}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             <DataGrid
               title="Fields"
               subtitle={`${fields.length} fields configured`}
+              hideHeader={true}
               columns={[
-                { key:"FieldName", label:"", render:(v) => !isRO ? (
-                  <input type="checkbox" checked={selectedFields.has(v)} onChange={()=>toggleCheck(v)}
+                { key:"select", label:"", render:(v,row) => !isRO ? (
+                  <input type="checkbox" checked={selectedFields.has(row.FieldName)} onChange={()=>toggleCheck(row.FieldName)}
                     style={{width:16,height:16,cursor:"pointer"}} />
                 ) : null },
                 { key:"SortOrder", label:"#", numeric:true },
@@ -650,6 +706,11 @@ export default function PageMasterDetails({ mode, row, onBack, onSaved }) {
                         style={fieldItemStyle(selAvail===f.FieldName)}>
                         <span style={{color:"var(--muted)"}}>⠿</span>
                         <span style={{flex:1}}>{f.Label||f.FieldName}</span>
+                        {f.Format && (
+                          <span style={{fontSize:10,color:"#7c3aed",background:"#ede9fe",border:"1px solid #c4b5fd",padding:"2px 6px",borderRadius:5,fontWeight:900}}>
+                            {f.Format}
+                          </span>
+                        )}
                         <span style={{fontSize:10,color:"var(--muted)",background:"var(--soft)",border:"1px solid var(--border)",padding:"2px 6px",borderRadius:5}}>{f.DataType||"nvarchar"}</span>
                       </div>
                     ))}
@@ -699,6 +760,11 @@ export default function PageMasterDetails({ mode, row, onBack, onSaved }) {
                         style={fieldItemStyle(selView===f.FieldName)}>
                         <span style={{color:"var(--muted)"}}>⠿</span>
                         <span style={{flex:1}}>{f.Label||f.FieldName}</span>
+                        {f.Format && (
+                          <span style={{fontSize:10,color:"#7c3aed",background:"#ede9fe",border:"1px solid #c4b5fd",padding:"2px 6px",borderRadius:5,fontWeight:900,marginRight:4}}>
+                            {f.Format}
+                          </span>
+                        )}
                         <span style={{fontSize:10,color:"var(--muted)",marginRight:2}}>#{i+1}</span>
                         <button onClick={e=>{e.stopPropagation();moveFieldToAvail(f);}}
                           style={{height:20,width:20,border:0,borderRadius:5,background:"#fee2e2",color:"#dc2626",cursor:"pointer",fontWeight:900,fontSize:11,flexShrink:0}}>✕</button>

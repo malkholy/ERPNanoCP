@@ -140,6 +140,7 @@ export default function GroupByTab({ pageId, pageFields = [], isRO = false, show
       <DataGrid
         title="Group By Configurations"
         subtitle={`${configs.length} config(s)`}
+        hideHeader={true}
         loading={loading}
         columns={[
           { key:"_n", label:"#", numeric:true, render:(v,r) => configs.indexOf(r)+1 },

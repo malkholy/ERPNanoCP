@@ -10,19 +10,20 @@ const BASE_BODY = {
 };
 
 export async function apiCall(operation, lineData = null, extraParams = {}) {
+  const { Sp_Name = 'CP.APICPOperation', ...bodyParams } = extraParams;
   const res = await fetch(API_URL, {
     method: 'POST',
     headers: {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
-      'Sp_Name': 'CP.APICPOperation',
+      'Sp_Name': Sp_Name,
     },
     body: JSON.stringify({
       ...BASE_BODY,
       Operation: operation,
       LineData: lineData ? JSON.stringify(lineData) : null,
       User: sessionStorage.getItem('UserName') || '',
-      ...extraParams,
+      ...bodyParams,
     }),
   });
   const text = await res.text();
